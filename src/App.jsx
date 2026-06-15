@@ -14,6 +14,7 @@ export default function App() {
   const [targetAmount, setTargetAmount] = useState(100000);
   const [incrementAmount, setIncrementAmount] = useState(0);
   const [incrementMonth, setIncrementMonth] = useState(12);
+  const [incrementAllocation, setIncrementAllocation] = useState('savings');
 
   const [debts, setDebts] = useState([
     { id: 1, name: 'e.g. Credit Card / Home Loan', balance: 50000, rate: 0, minPayment: 8235, booster: 1000 }
@@ -31,7 +32,7 @@ export default function App() {
     while (accumulatedSavings < targetAmount && computedMonthsToTarget < 1200) {
       computedMonthsToTarget++;
       let currentMonthlySavings = savingsTarget;
-      if (computedMonthsToTarget > incrementMonth) {
+      if (computedMonthsToTarget > incrementMonth && incrementAllocation === 'savings') {
         currentMonthlySavings += incrementAmount;
       }
       if (currentMonthlySavings <= 0) break;
@@ -160,6 +161,9 @@ export default function App() {
       currentDebts = sortDebts(currentDebts);
       
       let pool = 0;
+      if (incrementAllocation === 'debt' && months > incrementMonth) {
+        pool += incrementAmount;
+      }
       
       // Calculate Interest
       for (let i = 0; i < currentDebts.length; i++) {
@@ -246,6 +250,29 @@ export default function App() {
     setDebts(debts.map(d => d.id === id ? { ...d, booster: 0 } : d));
   };
 
+  const handleUpdateTargetMonths = (id, months) => {
+    const debt = debts.find(d => d.id === id);
+    if (!debt || months <= 0) return;
+    
+    let requiredPayment;
+    if (debt.rate === 0) {
+      requiredPayment = debt.balance / months;
+    } else {
+      const r = (debt.rate / 100) / 12;
+      requiredPayment = debt.balance * (r * Math.pow(1 + r, months)) / (Math.pow(1 + r, months) - 1);
+    }
+    
+    const newBooster = Math.max(0, requiredPayment - debt.minPayment);
+    setDebts(debts.map(d => d.id === id ? { ...d, booster: newBooster } : d));
+  };
+
+  const handleUpdateCustomPay = (id, pay) => {
+    const debt = debts.find(d => d.id === id);
+    if (!debt) return;
+    const newBooster = Math.max(0, pay - debt.minPayment);
+    setDebts(debts.map(d => d.id === id ? { ...d, booster: newBooster } : d));
+  };
+
   const handleAddDebt = () => {
     setDebts([...debts, { id: Date.now(), name: 'New Debt', balance: 0, rate: 0, minPayment: 0, booster: 0 }]);
   };
@@ -310,6 +337,13 @@ export default function App() {
           <div className="form-group">
             <label className="form-label">Increment After (Months)</label>
             <input type="number" className="form-input" value={incrementMonth} onChange={e => setIncrementMonth(parseInt(e.target.value) || 0)} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Allocate Increment To</label>
+            <select className="form-input" value={incrementAllocation} onChange={e => setIncrementAllocation(e.target.value)} style={{ padding: '0.75rem 1rem' }}>
+              <option value="savings">Target Savings</option>
+              <option value="debt">Debt Repayment</option>
+            </select>
           </div>
         </div>
 
@@ -433,11 +467,21 @@ export default function App() {
               <div className="form-grid">
                 <div className="form-group">
                   <label className="form-label">Custom Monthly Pay (₹)</label>
-                  <input type="number" className="form-input" value={debt.minPayment + debt.booster} disabled style={{opacity: 0.7}} />
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    value={Math.round(debt.minPayment + debt.booster)} 
+                    onChange={e => handleUpdateCustomPay(debt.id, parseFloat(e.target.value) || 0)} 
+                  />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Target Months to Close</label>
-                  <input type="number" className="form-input" value={singleBoostPlan.months} disabled style={{opacity: 0.7}} />
+                  <input 
+                    type="number" 
+                    className="form-input" 
+                    value={singleBoostPlan.months} 
+                    onChange={e => handleUpdateTargetMonths(debt.id, parseInt(e.target.value) || 0)} 
+                  />
                 </div>
               </div>
 
